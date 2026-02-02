@@ -11,6 +11,7 @@ jobs:
     environment: pypi
     permissions:
       id-token: write  # Required for trusted publishing
+      contents: read   # Required for checkout on private repos
 
     steps:
       - name: Checkout code
