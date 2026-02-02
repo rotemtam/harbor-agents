@@ -1,127 +1,68 @@
-# Harbor Agent: Claude Code with Skills
+# Harbor Agents
 
-A Harbor agent that extends Claude Code with custom skills support. This library allows you to run Claude Code evaluations with pre-configured skills loaded into the container.
+A collection of custom agents for [Harbor](https://harborframework.com/) - the AI agent evaluation framework.
 
 ## Installation
 
 ```bash
-uv add harbor-agent-skilled-claude
+pip install harbor-agents
 ```
 
-Or with pip:
+## Available Agents
+
+### ClaudeCodeWithSkills
+
+Extends Claude Code with custom skills support. Load pre-configured skills into the container for evaluations.
 
 ```bash
-pip install harbor-agent-skilled-claude
-```
-
-## Usage
-
-### Basic Usage
-
-```python
-from harbor_agent.skilled_claude import ClaudeCodeWithSkills
-from pathlib import Path
-
-# Create agent with skills directory
-agent = ClaudeCodeWithSkills(
-    logs_dir=Path("./logs"),
-    skill_dir=Path("./skills"),  # Directory containing skill folders
-)
-```
-
-### Skill Filtering
-
-```python
-# Load all skills (default)
-agent = ClaudeCodeWithSkills(
-    logs_dir=Path("./logs"),
-    skill_dir=Path("./skills"),
-    skills=None,  # Loads all valid skills
-)
+# Load all skills from a directory
+harbor run -p ./my-task \
+    --agent-import-path harbor_agent.skilled_claude:ClaudeCodeWithSkills \
+    -m anthropic/claude-sonnet-4-20250514 \
+    --ak skill_dir=./skills
 
 # Load specific skills only
-agent = ClaudeCodeWithSkills(
-    logs_dir=Path("./logs"),
-    skill_dir=Path("./skills"),
-    skills="skill-a,skill-b",  # Only loads skill-a and skill-b
-)
+harbor run -p ./my-task \
+    --agent-import-path harbor_agent.skilled_claude:ClaudeCodeWithSkills \
+    -m anthropic/claude-sonnet-4-20250514 \
+    --ak skill_dir=./skills \
+    --ak skills=my-skill,another-skill
 
-# Baseline mode (no skills)
-agent = ClaudeCodeWithSkills(
-    logs_dir=Path("./logs"),
-    skill_dir=Path("./skills"),
-    skills="",  # Empty string = load no skills
-)
+# Baseline (no skills)
+harbor run -p ./my-task \
+    --agent-import-path harbor_agent.skilled_claude:ClaudeCodeWithSkills \
+    -m anthropic/claude-sonnet-4-20250514 \
+    --ak skill_dir=./skills \
+    --ak 'skills='
 ```
 
-### With Harbor CLI
+**Options:**
 
-Use this agent with Harbor's run command by specifying it as the agent:
+| Option | Description |
+|--------|-------------|
+| `skill_dir` | Path to directory containing skill folders |
+| `skills` | Filter: omit for all, `skill-a,skill-b` for specific, empty string for none |
 
-```bash
-harbor run --agent harbor_agent.skilled_claude:ClaudeCodeWithSkills --task ./my-task
-```
-
-## Skill Directory Structure
-
-Skills should be organized in a directory structure like:
+**Skill Directory Structure:**
 
 ```
 skills/
 ├── my-skill/
-│   ├── SKILL.md          # Required - skill definition
-│   └── references/       # Optional - additional resources
-│       └── guide.md
-├── another-skill/
-│   └── SKILL.md
+│   ├── SKILL.md          # Required
+│   └── references/       # Optional
+└── another-skill/
+    └── SKILL.md
 ```
-
-Each skill directory **must** contain a `SKILL.md` file to be recognized as a valid skill.
 
 ## Development
 
-This project uses `uv` for package management.
-
-### Setup
-
 ```bash
-# Clone the repository
-git clone <repo-url>
-cd harbor-agents
-
-# Install dependencies
-uv sync --all-extras
-```
-
-### Running Tests
-
-```bash
-# Unit tests
-uv run pytest tests/unit -v
-
-# Integration tests (requires Harbor + API keys)
-uv run pytest tests/integration -v
-
-# All tests
-uv run pytest -v
-```
-
-### Linting and Type Checking
-
-```bash
-# Linting
-uv run ruff check src tests
-
-# Type checking
-uv run mypy src
-```
-
-### Building
-
-```bash
-uv build
+uv sync --all-extras    # Install
+uv run pytest -v        # Test
+uv run ruff check src   # Lint
+uv run mypy src         # Type check
 ```
 
 ## License
 
-MIT
+Apache 2.0
