@@ -143,7 +143,7 @@ class TestHarborIntegration:
             timeout_multiplier=1.0,
             agent=AgentConfig(
                 import_path="harbor_agent.skilled_claude:ClaudeCodeWithSkills",
-                model_name="anthropic/claude-sonnet-4-20250514",
+                model_name="anthropic/claude-haiku-4-5-20251001",
                 kwargs={
                     "skill_dir": str(skills_dir),
                     "skills": None,  # Load all skills
@@ -180,7 +180,7 @@ class TestHarborIntegration:
             timeout_multiplier=1.0,
             agent=AgentConfig(
                 import_path="harbor_agent.skilled_claude:ClaudeCodeWithSkills",
-                model_name="anthropic/claude-sonnet-4-20250514",
+                model_name="anthropic/claude-haiku-4-5-20251001",
                 kwargs={
                     "skill_dir": str(skills_dir),
                     "skills": "",  # Load no skills
@@ -217,7 +217,7 @@ class TestHarborIntegration:
             timeout_multiplier=1.0,
             agent=AgentConfig(
                 import_path="harbor_agent.skilled_claude:ClaudeCodeWithSkills",
-                model_name="anthropic/claude-sonnet-4-20250514",
+                model_name="anthropic/claude-haiku-4-5-20251001",
                 kwargs={
                     "skill_dir": str(skills_dir),
                     "skills": "test-skill",  # Only load test-skill
