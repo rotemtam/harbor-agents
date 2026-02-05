@@ -13,8 +13,6 @@ from pathlib import Path
 
 import pytest
 from harbor import Trial, TrialConfig
-from harbor.agents.base import BaseAgent  # type: ignore[import-untyped]
-from harbor.environments.base import BaseEnvironment  # type: ignore[import-untyped]
 from harbor.models.trial.config import AgentConfig, EnvironmentConfig, TaskConfig, VerifierConfig
 
 from harbor_agent.multi_turn import SimulatedUser, SimulatedUserDone
@@ -23,47 +21,24 @@ from harbor_agent.multi_turn import SimulatedUser, SimulatedUserDone
 pytestmark = pytest.mark.integration
 
 
-class MooAgent(BaseAgent):  # type: ignore[misc]
-    """A simple agent that just says 'moo' for testing purposes."""
+class MooSimulatedUser(SimulatedUser):
+    """A simulated user that just says 'moo' for testing purposes.
 
-    def __init__(self, logs_dir: Path, **kwargs):
-        super().__init__(logs_dir=logs_dir, **kwargs)
-        self._moo_count = 0
-
-    def name(self) -> str:
-        return "moo-agent"
-
-    def version(self) -> str:
-        return "1.0.0"
-
-    async def setup(self, environment: BaseEnvironment) -> None:
-        """No setup needed for the moo agent."""
-        pass
-
-    async def run(self, message: str) -> str:
-        """Always respond with 'moo'."""
-        self._moo_count += 1
-        return f"moo #{self._moo_count}"
-
-
-class ThreeTurnSimUser(SimulatedUser):
-    """A simulated user that asks exactly 3 questions then stops."""
+    This cow-themed simulated user sends 3 'moo' messages to Claude,
+    then stops the conversation.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._turn = 0
-        self._questions = [
-            "What sound does a cow make?",
-            "Can you say it again?",
-            "One more time please!",
-        ]
+        self._moo_count = 0
+        self._max_moos = 3
 
     async def next_message(self, conversation: list) -> str:
-        if self._turn >= len(self._questions):
-            raise SimulatedUserDone("Asked all 3 questions")
-        question = self._questions[self._turn]
-        self._turn += 1
-        return question
+        """Send a moo, or stop after 3 moos."""
+        if self._moo_count >= self._max_moos:
+            raise SimulatedUserDone("Done mooing")
+        self._moo_count += 1
+        return f"moo #{self._moo_count}"
 
 
 @pytest.fixture
@@ -86,14 +61,14 @@ tags = ["test", "multi-turn"]
 timeout_sec = 60.0
 
 [agent]
-timeout_sec = 120.0
+timeout_sec = 180.0
 
 [environment]
 build_timeout_sec = 300.0
 cpus = 1
 memory_mb = 2048
 storage_mb = 10240
-allow_internet = false
+allow_internet = true
 """
     )
 
@@ -130,13 +105,13 @@ class TestMultiTurnIntegration:
     """Integration tests for MultiTurnAgent with Harbor."""
 
     @pytest.mark.asyncio
-    async def test_multi_turn_with_moo_agent(self, task_dir: Path, tmp_path: Path):
-        """Test MultiTurnAgent with MooAgent for 3 turns."""
+    async def test_multi_turn_moo_with_claude(self, task_dir: Path, tmp_path: Path):
+        """Test MultiTurnAgent: MooSimulatedUser sends 'moo', Claude responds."""
         trials_dir = tmp_path / "trials"
 
         config = TrialConfig(
             task=TaskConfig(path=task_dir),
-            trial_name="test-multi-turn-moo",
+            trial_name="test-moo-claude",
             trials_dir=trials_dir,
             timeout_multiplier=1.0,
             agent=AgentConfig(
@@ -144,10 +119,10 @@ class TestMultiTurnIntegration:
                 model_name="anthropic/claude-haiku-4-5-20251001",
                 kwargs={
                     "simulated_user_import_path": (
-                        "tests.integration.test_multi_turn:ThreeTurnSimUser"
+                        "tests.integration.test_multi_turn:MooSimulatedUser"
                     ),
                     "inner_agent_import_path": (
-                        "tests.integration.test_multi_turn:MooAgent"
+                        "harbor.agents.installed.claude_code:ClaudeCode"
                     ),
                     "max_turns": 3,
                 },
@@ -164,7 +139,7 @@ class TestMultiTurnIntegration:
         assert result.verifier_result is not None
 
         # Check trajectory file exists
-        trial_dir = trials_dir / "test-multi-turn-moo"
+        trial_dir = trials_dir / "test-moo-claude"
         trajectory_path = trial_dir / "agent" / "trajectory.json"
         assert trajectory_path.exists(), f"trajectory.json not found at {trajectory_path}"
 
@@ -187,24 +162,24 @@ class TestMultiTurnIntegration:
                 f"Step {i} should be {expected_source}, got {step['source']}"
             )
 
-        # Verify user messages are the questions
+        # Verify user messages are the moos
         user_steps = [s for s in steps if s["source"] == "user"]
-        assert user_steps[0]["message"] == "What sound does a cow make?"
-        assert user_steps[1]["message"] == "Can you say it again?"
-        assert user_steps[2]["message"] == "One more time please!"
+        assert user_steps[0]["message"] == "moo #1"
+        assert user_steps[1]["message"] == "moo #2"
+        assert user_steps[2]["message"] == "moo #3"
 
-        # Verify agent responses contain "moo"
+        # Verify agent (Claude) responded to each moo
         agent_steps = [s for s in steps if s["source"] == "agent"]
+        assert len(agent_steps) == 3, "Claude should have responded 3 times"
         for agent_step in agent_steps:
-            assert "moo" in agent_step["message"].lower(), (
-                f"Expected 'moo' in response, got: {agent_step['message']}"
-            )
+            # Claude's response should be non-empty
+            assert len(agent_step["message"]) > 0, "Claude response should not be empty"
 
         # Verify final_metrics
         assert trajectory["final_metrics"]["total_steps"] == 6
 
         # Verify extra metadata
-        assert trajectory["extra"]["inner_agent"] == "moo-agent"
+        assert trajectory["extra"]["inner_agent"] == "claude-code"
         assert trajectory["extra"]["max_turns"] == 3
 
         # Verify simulated flag on user steps
