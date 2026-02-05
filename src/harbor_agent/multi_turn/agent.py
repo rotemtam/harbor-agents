@@ -48,18 +48,14 @@ def _import_class(import_path: str) -> type[Any]:
 
 
 def _parse_kwargs(kwargs: dict[str, Any] | str | None) -> dict[str, Any]:
-    """Parse kwargs that may be a JSON string or dict.
-
-    Args:
-        kwargs: Either a dict, a JSON string, or None.
-
-    Returns:
-        Parsed kwargs as a dict.
-    """
+    """Parse kwargs that may be a JSON string or dict."""
     if kwargs is None:
         return {}
     if isinstance(kwargs, str):
-        return json.loads(kwargs)  # type: ignore[no-any-return]
+        parsed = json.loads(kwargs)
+        if not isinstance(parsed, dict):
+            raise ValueError(f"Expected JSON object, got {type(parsed).__name__}")
+        return parsed  # type: ignore[no-any-return]
     return kwargs
 
 
@@ -193,7 +189,7 @@ class MultiTurnAgent(BaseAgent):  # type: ignore[misc]
 
     def _read_inner_agent_response(self) -> str:
         """Read the most recent response from the inner agent's log files."""
-        inner_logs_dir = self._inner_agent.logs_dir
+        inner_logs_dir: Path = self._inner_agent.logs_dir
 
         def command_number(p: Path) -> int:
             suffix = p.name.removeprefix("command-")

@@ -249,6 +249,19 @@ class TestMultiTurnAgent:
 
             assert agent._simulated_user.messages == ["hello"]
 
+    def test_kwargs_rejects_non_object_json(self, tmp_path, mock_inner_agent_class):
+        """Should reject JSON arrays or other non-object types."""
+        with patch("harbor_agent.multi_turn.agent._import_class") as mock_import:
+            mock_import.side_effect = [ScriptedSimUser, mock_inner_agent_class]
+
+            with pytest.raises(ValueError, match="Expected JSON object"):
+                MultiTurnAgent(
+                    logs_dir=tmp_path / "logs",
+                    simulated_user="test:SimUser",
+                    agent="test:Agent",
+                    simulated_user_kwargs='["not", "a", "dict"]',
+                )
+
     @pytest.mark.asyncio
     async def test_setup_calls_both_agents(
         self, tmp_path, mock_environment, mock_inner_agent_class
