@@ -13,8 +13,6 @@ from pathlib import Path
 
 import pytest
 from harbor import Trial, TrialConfig
-from harbor.agents.base import BaseAgent  # type: ignore[import-untyped]
-from harbor.environments.base import BaseEnvironment  # type: ignore[import-untyped]
 from harbor.models.trial.config import AgentConfig, EnvironmentConfig, TaskConfig, VerifierConfig
 
 from harbor_agent.multi_turn import SimulatedUser, SimulatedUserDone
@@ -41,47 +39,6 @@ class MooSimulatedUser(SimulatedUser):
             raise SimulatedUserDone("Done mooing")
         self._moo_count += 1
         return f"moo #{self._moo_count}"
-
-
-class SimpleClaudeAgent(BaseAgent):  # type: ignore[misc]
-    """A simple agent that calls Claude API via litellm.
-
-    This is a minimal agent for testing that doesn't require the full
-    ClaudeCode infrastructure. It just sends messages to Claude and
-    returns the response.
-    """
-
-    def __init__(
-        self,
-        logs_dir: Path,
-        model_name: str = "anthropic/claude-haiku-4-5-20251001",
-        **kwargs,
-    ):
-        super().__init__(logs_dir=logs_dir, **kwargs)
-        self._model_name = model_name
-
-    def name(self) -> str:
-        return "simple-claude-agent"
-
-    def version(self) -> str:
-        return "1.0.0"
-
-    async def setup(self, environment: BaseEnvironment) -> None:
-        """No setup needed for litellm."""
-        pass
-
-    async def run(self, message: str) -> str:
-        """Send message to Claude via litellm and return response."""
-        import litellm
-
-        response = await litellm.acompletion(
-            model=self._model_name,
-            max_tokens=256,
-            messages=[{"role": "user", "content": message}],
-        )
-
-        # Extract text from response
-        return response.choices[0].message.content or ""
 
 
 @pytest.fixture
@@ -161,12 +118,15 @@ class TestMultiTurnIntegration:
                 import_path="harbor_agent.multi_turn:MultiTurnAgent",
                 model_name="anthropic/claude-haiku-4-5-20251001",
                 kwargs={
-                    "simulated_user_import_path": (
+                    "simulated_user": (
                         "tests.integration.test_multi_turn:MooSimulatedUser"
                     ),
-                    "inner_agent_import_path": (
-                        "tests.integration.test_multi_turn:SimpleClaudeAgent"
+                    "agent": (
+                        "harbor.agents.installed.claude_code:ClaudeCode"
                     ),
+                    "agent_kwargs": {
+                        "model_name": "anthropic/claude-haiku-4-5-20251001",
+                    },
                     "max_turns": 3,
                 },
             ),
@@ -222,7 +182,7 @@ class TestMultiTurnIntegration:
         assert trajectory["final_metrics"]["total_steps"] == 6
 
         # Verify extra metadata
-        assert trajectory["extra"]["inner_agent"] == "simple-claude-agent"
+        assert trajectory["extra"]["inner_agent"] == "claude-code"
         assert trajectory["extra"]["max_turns"] == 3
 
         # Verify simulated flag on user steps
