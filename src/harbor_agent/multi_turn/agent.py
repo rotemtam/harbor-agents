@@ -97,7 +97,7 @@ class MultiTurnAgent(BaseAgent):  # type: ignore[misc]
         self._max_turns = max_turns
         self._conversation: list[ConversationMessage] = []
         self._steps: list[Step] = []
-        self._session_id = str(uuid.uuid4())
+        self._session_id = ""
 
         # Parse kwargs (handle JSON strings from CLI)
         sim_user_kwargs = _parse_kwargs(simulated_user_kwargs)
@@ -138,6 +138,7 @@ class MultiTurnAgent(BaseAgent):  # type: ignore[misc]
         """Run the multi-turn conversation loop."""
         self._conversation = []
         self._steps = []
+        self._session_id = str(uuid.uuid4())
         step_id = 1
 
         for turn in range(self._max_turns):
