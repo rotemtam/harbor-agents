@@ -177,7 +177,7 @@ class ClaudeSdkSimulatedUser(SimulatedUser):
             return isinstance(message, self._assistant_message_type)
         msg_type = self._get_attr(message, "type")
         if msg_type is not None:
-            return msg_type == "assistant"
+            return bool(msg_type == "assistant")
         return hasattr(message, "content")
 
     def _get_content_blocks(self, message: Any) -> list[Any]:
@@ -191,7 +191,7 @@ class ClaudeSdkSimulatedUser(SimulatedUser):
             return isinstance(block, self._text_block_type)
         block_type = self._get_attr(block, "type")
         if block_type is not None:
-            return block_type == "text"
+            return bool(block_type == "text")
         return hasattr(block, "text")
 
     def _get_text(self, block: Any) -> str:
