@@ -152,11 +152,12 @@ class MultiTurnAgent(BaseAgent):  # type: ignore[misc]
         # Store environment for the conversation loop
         self._environment = environment
 
-    async def run(self, instruction: str) -> str:
+    async def run(self, instruction: str, **kwargs: Any) -> str:
         """Run the multi-turn conversation loop.
 
         Args:
             instruction: The task instruction (passed to simulated user context).
+            **kwargs: Additional arguments from Harbor (environment, context, etc.)
 
         Returns:
             The final response from the conversation.
