@@ -897,7 +897,7 @@ wheels = [
 ]
 
 [[package]]
-name = "harbor-agent-skilled-claude"
+name = "harbor-agents"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
