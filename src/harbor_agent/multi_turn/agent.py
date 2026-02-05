@@ -2,11 +2,14 @@
 
 import importlib
 import json
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from harbor.agents.base import BaseAgent  # type: ignore[import-untyped]
 from harbor.environments.base import BaseEnvironment  # type: ignore[import-untyped]
+from harbor.models.trajectories import Step  # type: ignore[import-untyped]
 
 from harbor_agent.multi_turn.simulated_user import (
     ConversationMessage,
@@ -105,6 +108,8 @@ class MultiTurnAgent(BaseAgent):  # type: ignore[misc]
 
         self._max_turns = max_turns
         self._conversation: list[ConversationMessage] = []
+        self._steps: list[Step] = []
+        self._session_id = str(uuid.uuid4())
 
         # Parse kwargs (handle JSON strings from CLI)
         sim_user_kwargs = _parse_kwargs(simulated_user_kwargs)
@@ -156,8 +161,10 @@ class MultiTurnAgent(BaseAgent):  # type: ignore[misc]
         Returns:
             The final response from the conversation.
         """
-        # Initialize conversation with instruction context
+        # Initialize conversation and trajectory tracking
         self._conversation = []
+        self._steps = []
+        step_id = 1
         last_response = ""
 
         for turn in range(self._max_turns):
@@ -170,6 +177,18 @@ class MultiTurnAgent(BaseAgent):  # type: ignore[misc]
                 # Conversation complete
                 break
 
+            # Log simulated user turn as ATIF Step
+            self._steps.append(
+                Step(
+                    step_id=step_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    source="user",
+                    message=user_message,
+                    extra={"turn": turn, "simulated": True},
+                )
+            )
+            step_id += 1
+
             # Add user message to history
             self._conversation.append(
                 ConversationMessage(role="user", content=user_message)
@@ -179,12 +198,56 @@ class MultiTurnAgent(BaseAgent):  # type: ignore[misc]
             response = await self._inner_agent.run(user_message)
             last_response = response
 
+            # Log agent response as ATIF Step
+            self._steps.append(
+                Step(
+                    step_id=step_id,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    source="agent",
+                    message=response,
+                    extra={"turn": turn},
+                )
+            )
+            step_id += 1
+
             # Add assistant response to history
             self._conversation.append(
                 ConversationMessage(role="assistant", content=response)
             )
 
+        # Save the trajectory
+        self._save_trajectory()
+
         return last_response
+
+    def _save_trajectory(self) -> None:
+        """Save the conversation trajectory in ATIF format."""
+        # Get inner agent name if available
+        inner_agent_name = getattr(self._inner_agent, "name", lambda: "unknown")()
+
+        # Build trajectory data
+        trajectory_data: dict[str, Any] = {
+            "schema_version": "ATIF-v1.5",
+            "session_id": self._session_id,
+            "agent": {
+                "name": self.name(),
+                "version": self.version(),
+            },
+            "steps": [step.model_dump() for step in self._steps],
+            "final_metrics": {
+                "total_steps": len(self._steps),
+            },
+            "extra": {
+                "inner_agent": inner_agent_name,
+                "max_turns": self._max_turns,
+            },
+        }
+
+        # Ensure logs directory exists
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+
+        trajectory_path = self.logs_dir / "trajectory.json"
+        trajectory_path.write_text(json.dumps(trajectory_data, indent=2))
 
     @property
     def conversation_history(self) -> list[ConversationMessage]:

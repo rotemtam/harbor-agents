@@ -270,6 +270,9 @@ class TestMultiTurnAgent:
             def __init__(self, logs_dir, **kwargs):
                 pass
 
+            def name(self):
+                return "mock-inner-agent"
+
             async def setup(self, env):
                 pass
 
@@ -304,6 +307,9 @@ class TestMultiTurnAgent:
         class MockInnerAgent:
             def __init__(self, logs_dir, **kwargs):
                 pass
+
+            def name(self):
+                return "mock-inner-agent"
 
             async def setup(self, env):
                 pass
@@ -348,6 +354,9 @@ class TestMultiTurnAgent:
             def __init__(self, logs_dir, **kwargs):
                 pass
 
+            def name(self):
+                return "mock-inner-agent"
+
             async def setup(self, env):
                 pass
 
@@ -377,6 +386,9 @@ class TestMultiTurnAgent:
         class MockInnerAgent:
             def __init__(self, logs_dir, **kwargs):
                 self.call_count = 0
+
+            def name(self):
+                return "mock-inner-agent"
 
             async def setup(self, env):
                 pass
@@ -428,3 +440,171 @@ class TestMultiTurnAgent:
 
             assert received_kwargs["custom_option"] == "value"
             assert received_kwargs["another"] == 123
+
+    @pytest.mark.asyncio
+    async def test_trajectory_saved_after_run(self, tmp_path, mock_environment):
+        """Should save trajectory.json after run completes."""
+        import json
+
+        class MockInnerAgent:
+            def __init__(self, logs_dir, **kwargs):
+                pass
+
+            def name(self):
+                return "mock-inner-agent"
+
+            async def setup(self, env):
+                pass
+
+            async def run(self, message: str) -> str:
+                return f"Response: {message}"
+
+        with patch("harbor_agent.multi_turn.agent._import_class") as mock_import:
+            mock_import.side_effect = [ScriptedSimUser, MockInnerAgent]
+
+            logs_dir = tmp_path / "logs"
+            agent = MultiTurnAgent(
+                logs_dir=logs_dir,
+                simulated_user_import_path="test:SimUser",
+                inner_agent_import_path="test:Agent",
+                simulated_user_kwargs={"messages": ["hello", "world"]},
+            )
+
+            await agent.setup(mock_environment)
+            await agent.run("instruction")
+
+            # Check trajectory file exists
+            trajectory_path = logs_dir / "trajectory.json"
+            assert trajectory_path.exists()
+
+            # Validate trajectory content
+            trajectory = json.loads(trajectory_path.read_text())
+            assert trajectory["schema_version"] == "ATIF-v1.5"
+            assert trajectory["agent"]["name"] == "multi-turn-agent"
+            assert trajectory["agent"]["version"] == "0.1.0"
+            assert len(trajectory["steps"]) == 4  # 2 user + 2 agent messages
+            assert trajectory["final_metrics"]["total_steps"] == 4
+
+    @pytest.mark.asyncio
+    async def test_trajectory_steps_structure(self, tmp_path, mock_environment):
+        """Trajectory steps should have correct structure."""
+        import json
+
+        class MockInnerAgent:
+            def __init__(self, logs_dir, **kwargs):
+                pass
+
+            def name(self):
+                return "mock-inner-agent"
+
+            async def setup(self, env):
+                pass
+
+            async def run(self, message: str) -> str:
+                return f"Response: {message}"
+
+        with patch("harbor_agent.multi_turn.agent._import_class") as mock_import:
+            mock_import.side_effect = [ScriptedSimUser, MockInnerAgent]
+
+            logs_dir = tmp_path / "logs"
+            agent = MultiTurnAgent(
+                logs_dir=logs_dir,
+                simulated_user_import_path="test:SimUser",
+                inner_agent_import_path="test:Agent",
+                simulated_user_kwargs={"messages": ["hello"]},
+            )
+
+            await agent.setup(mock_environment)
+            await agent.run("instruction")
+
+            trajectory = json.loads((logs_dir / "trajectory.json").read_text())
+            steps = trajectory["steps"]
+
+            # First step: simulated user message
+            assert steps[0]["step_id"] == 1
+            assert steps[0]["source"] == "user"
+            assert steps[0]["message"] == "hello"
+            assert steps[0]["extra"]["simulated"] is True
+            assert steps[0]["extra"]["turn"] == 0
+
+            # Second step: agent response
+            assert steps[1]["step_id"] == 2
+            assert steps[1]["source"] == "agent"
+            assert steps[1]["message"] == "Response: hello"
+            assert steps[1]["extra"]["turn"] == 0
+
+    @pytest.mark.asyncio
+    async def test_trajectory_includes_inner_agent_name(self, tmp_path, mock_environment):
+        """Trajectory extra should include inner agent name."""
+        import json
+
+        class MockInnerAgent:
+            def __init__(self, logs_dir, **kwargs):
+                pass
+
+            def name(self):
+                return "custom-inner-agent"
+
+            async def setup(self, env):
+                pass
+
+            async def run(self, message: str) -> str:
+                return "ok"
+
+        with patch("harbor_agent.multi_turn.agent._import_class") as mock_import:
+            mock_import.side_effect = [ScriptedSimUser, MockInnerAgent]
+
+            logs_dir = tmp_path / "logs"
+            agent = MultiTurnAgent(
+                logs_dir=logs_dir,
+                simulated_user_import_path="test:SimUser",
+                inner_agent_import_path="test:Agent",
+                simulated_user_kwargs={"messages": ["hello"]},
+                max_turns=10,
+            )
+
+            await agent.setup(mock_environment)
+            await agent.run("instruction")
+
+            trajectory = json.loads((logs_dir / "trajectory.json").read_text())
+            assert trajectory["extra"]["inner_agent"] == "custom-inner-agent"
+            assert trajectory["extra"]["max_turns"] == 10
+
+    @pytest.mark.asyncio
+    async def test_trajectory_empty_when_immediate_done(self, tmp_path, mock_environment):
+        """Trajectory should handle immediate SimulatedUserDone."""
+        import json
+
+        class ImmediateDoneUser(SimulatedUser):
+            async def next_message(self, conv):
+                raise SimulatedUserDone("Done immediately")
+
+        class MockInnerAgent:
+            def __init__(self, logs_dir, **kwargs):
+                pass
+
+            def name(self):
+                return "mock-inner-agent"
+
+            async def setup(self, env):
+                pass
+
+            async def run(self, message: str) -> str:
+                return "ok"
+
+        with patch("harbor_agent.multi_turn.agent._import_class") as mock_import:
+            mock_import.side_effect = [ImmediateDoneUser, MockInnerAgent]
+
+            logs_dir = tmp_path / "logs"
+            agent = MultiTurnAgent(
+                logs_dir=logs_dir,
+                simulated_user_import_path="test:SimUser",
+                inner_agent_import_path="test:Agent",
+            )
+
+            await agent.setup(mock_environment)
+            await agent.run("instruction")
+
+            trajectory = json.loads((logs_dir / "trajectory.json").read_text())
+            assert len(trajectory["steps"]) == 0
+            assert trajectory["final_metrics"]["total_steps"] == 0
