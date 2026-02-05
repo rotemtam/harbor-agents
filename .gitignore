@@ -43,3 +43,5 @@ htmlcov/
 .mcp.json
 .tessl/
 tessl.json
+
+jobs/

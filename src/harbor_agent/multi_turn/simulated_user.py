@@ -77,6 +77,18 @@ class SimulatedUser(ABC):
         """
         pass
 
+    def set_instruction(self, instruction: str) -> None:
+        """Set the task instruction as the goal.
+
+        Called by MultiTurnAgent before the conversation loop starts,
+        passing the task instruction. Subclasses can override this to
+        use the instruction as their goal or for other purposes.
+
+        Args:
+            instruction: The task instruction from the Harbor task.
+        """
+        pass
+
     @abstractmethod
     async def next_message(
         self, conversation: list[ConversationMessage]

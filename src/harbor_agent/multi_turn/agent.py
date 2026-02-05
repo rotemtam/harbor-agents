@@ -141,6 +141,9 @@ class MultiTurnAgent(BaseAgent):  # type: ignore[misc]
         self._session_id = str(uuid.uuid4())
         step_id = 1
 
+        # Pass task instruction to simulated user as potential goal
+        self._simulated_user.set_instruction(instruction)
+
         for turn in range(self._max_turns):
             try:
                 user_message = await self._simulated_user.next_message(
