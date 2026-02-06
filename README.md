@@ -2,6 +2,15 @@
 
 A collection of custom agents for [Harbor](https://harborframework.com/) - the AI agent evaluation framework.
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Available Agents](#available-agents)
+  - [ClaudeCodeWithSkills](#claudecodewithskills) - Extends Claude Code with custom skills support
+  - [MultiTurnAgent](#multiturnagent) - Composite agent for testing multi-turn conversations
+- [Development](#development)
+- [License](#license)
+
 ## Installation
 
 ```bash
